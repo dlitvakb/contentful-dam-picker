@@ -1,0 +1,41 @@
+{
+  "name": "contentful-dam-picker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "",
+  "main": "src/index.js",
+  "devDependencies": {
+    "cross-env": "7.0.3"
+  },
+  "scripts": {
+    "start": "cross-env BROWSER=none react-scripts start",
+    "build": "react-scripts build",
+    "deploy": "contentful-app-scripts upload --ci --bundle-dir ./build --organization-id ${DEFINITIONS_ORG_ID} --definition-id bgBVVuNbfvUW5tpFnD20s --token ${CONTENTFUL_CMA_TOKEN}",
+    "deploy:test": "contentful-app-scripts upload --ci --bundle-dir ./build --organization-id ${TEST_ORG_ID} --definition-id ${TEST_APP_ID} --token ${CONTENTFUL_CMA_TOKEN}"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@contentful/app-scripts": "^1.1.17",
+    "@contentful/dam-app-base": "^2.0.19",
+    "@contentful/f36-components": "^4.14.0",
+    "react": "16.12.0",
+    "react-dom": "16.12.0",
+    "react-scripts": "4.0.3"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
