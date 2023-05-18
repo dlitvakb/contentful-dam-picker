@@ -1,4 +1,4 @@
-import { AssetCard, Grid, TextInput, Button, IconButton, Paragraph, Stack, Note, FormControl, Select } from '@contentful/f36-components'
+import { AssetCard, Grid, TextInput, Button, IconButton, Paragraph, Stack, Note, FormControl, Select, Pagination } from '@contentful/f36-components'
 import { SearchIcon } from '@contentful/f36-icons'
 import { setup } from '@contentful/dam-app-base'
 import React, { useState, useEffect } from 'react'
@@ -11,7 +11,7 @@ function ExternalAssetCard({ asset, onClick, selectedAssets }) {
       status="published"
       type="image"
       title={asset.fields.title}
-      src={asset.fields.file.url}
+      src={`${asset.fields.file.url}?h=150&q=50&fm=avif`}
       onClick={() => onClick(asset)}
       size="small"
       isSelected={!!selectedAssets.find((a) => a.sys.id === asset.sys.id)}
@@ -21,7 +21,7 @@ function ExternalAssetCard({ asset, onClick, selectedAssets }) {
 
 function ExternalAssetCardList({ assets, onClick, selectedAssets }) {
   return (
-    <Grid style={{ width: '100%' }} rowGap="spacingXs" columns={3}>
+    <Grid style={{ width: '100%' }} rowGap="spacingXs" columns={4}>
       {assets.filter(asset => !!asset.fields.file.url).map((asset) => {
         return <ExternalAssetCard key={asset.sys.id} asset={asset} onClick={onClick} selectedAssets={selectedAssets} />
       })}
@@ -31,7 +31,13 @@ function ExternalAssetCardList({ assets, onClick, selectedAssets }) {
 
 function LoadingAssetList() {
   return (
-    <Grid style={{ width: '100%' }} columns={3}>
+    <Grid style={{ width: '100%' }} columns={4}>
+      <AssetCard
+        status="published"
+        type="image"
+        size="small"
+        isLoading
+      />
       <AssetCard
         status="published"
         type="image"
@@ -65,6 +71,11 @@ function ExternalAssetCardDialog({ sdk }) {
   const [filteredAssets, setFilteredAssets] = useState(availableAssets)
   const [selectedAssets, setSelectedAssets] = useState([])
 
+  const [filteredPageAssets, setFilteredPageAssets] = useState(availableAssets)
+
+  const [page, setPage] = useState(0)
+  const [itemsPerPage, setItemsPerPage] = useState(20)
+
   const onClickSelect = (asset) => {
     let newSelectedAssets
 
@@ -82,25 +93,58 @@ function ExternalAssetCardDialog({ sdk }) {
       asset.fields.title.toLowerCase().includes(e.target.value.toLowerCase()),
     )
     setFilteredAssets(newFilteredAssets)
+    changeFilteredPage(0)
   }
 
   const changeSelectedLocale = (e) => {
     setSelectedLocale(e.target.value)
   }
 
+  const handleViewPerPageChange = (i) => {
+    setItemsPerPage(i);
+    changeFilteredPage(0, i);
+  };
+
+  const changeFilteredPage = (p, perPage) => {
+    setPage(p)
+
+    perPage = (perPage !== undefined && itemsPerPage !== perPage) ? perPage : itemsPerPage
+    setFilteredPageAssets(filteredAssets.slice(perPage * p, perPage * (p + 1)))
+  }
+
   useEffect(() => {
-    async function fetchAssets() {
-      const response = await fetch(`https://cdn.contentful.com/spaces/${spaceId}/environments/master/assets?locale=${selectedLocale}`, {
+    async function fetchTotalAssets() {
+      const response = await fetch(`https://cdn.contentful.com/spaces/${spaceId}/environments/master/assets?limit=1`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${deliveryApiToken}`
         },
       })
 
-      const assets = await response.json()
+      return (await response.json()).total
+    }
 
-      setAvailableAssets(assets.items)
-      setFilteredAssets(assets.items)
+    async function fetchAssetsPage(page) {
+      const response = await fetch(`https://cdn.contentful.com/spaces/${spaceId}/environments/master/assets?&limit=1000&skip=${1000 * page}&locale=${selectedLocale}`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${deliveryApiToken}`
+        },
+      })
+
+      return (await response.json()).items
+    }
+
+    async function fetchAssets() {
+      const totalAssets = await fetchTotalAssets()
+      let assets = []
+      for (let page = 0; page < totalAssets / 1000; page++) {
+        assets = assets.concat(await fetchAssetsPage(page))
+      }
+
+      setAvailableAssets(assets)
+      setFilteredAssets(assets)
+      setFilteredPageAssets(assets.slice(0, itemsPerPage))
     }
 
     async function fetchLocales() {
@@ -162,24 +206,48 @@ function ExternalAssetCardDialog({ sdk }) {
             </TextInput.Group>
           </Stack>
 
+          <Stack fullWidth flexDirection="column" alignItems="flex-end">
+            <Pagination
+              activePage={page}
+              onPageChange={changeFilteredPage}
+              isLastPage={page === Math.floor(filteredAssets.length / itemsPerPage)}
+              totalItems={filteredAssets.length}
+              showViewPerPage
+              viewPerPageOptions={[20, 60, 100]}
+              itemsPerPage={itemsPerPage}
+              onViewPerPageChange={handleViewPerPageChange}
+              pageLength={filteredPageAssets.length}
+            />
+          </Stack>
+
           {filteredAssets.length === 0 ?
           (<>
             <Stack fullWidth alignItems="center">
               <Paragraph>No assets match the current search...</Paragraph>
             </Stack>
-          </>) : <ExternalAssetCardList assets={filteredAssets} onClick={onClickSelect} selectedAssets={selectedAssets} />}
+          </>) : <ExternalAssetCardList assets={filteredPageAssets} onClick={onClickSelect} selectedAssets={selectedAssets} />}
 
           <Stack fullWidth flexDirection="column" alignItems="flex-end">
+            <Pagination
+              activePage={page}
+              onPageChange={changeFilteredPage}
+              isLastPage={page === Math.floor(filteredAssets.length / itemsPerPage)}
+              totalItems={filteredAssets.length}
+              showViewPerPage
+              viewPerPageOptions={[20, 60, 100]}
+              itemsPerPage={itemsPerPage}
+              onViewPerPageChange={handleViewPerPageChange}
+              pageLength={filteredPageAssets.length}
+            />
             <Button
                 variant="primary"
                 isDisabled={!availableAssets}
-                onClick={() => sdk.close([...selectedAssets] || [])}>
+                onClick={() => sdk.close(selectedAssets || [])}>
               Save
             </Button>
           </Stack>
         </>)
       }
-    )
     </Stack>
   )
 }
@@ -214,7 +282,7 @@ setup({
     }
   ],
   validateParameters: () => true,
-  makeThumbnail: asset => [asset.fields.file.url, asset.fields.title],
+  makeThumbnail: asset => [`${asset.fields.file.url}?h=100&q=50&fm=avif`, asset.fields.title],
   renderDialog: async (sdk) => {
     render(<ExternalAssetCardDialog sdk={sdk} />, document.getElementById('root'))
     sdk.window.startAutoResizer()
